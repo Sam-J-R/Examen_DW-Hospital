@@ -694,31 +694,36 @@
 				"type": "AzureSqlTable",
 				"schema": [
 					{
-						"name": "diagnosis_id",
-						"type": "int",
-						"precision": 10
-					},
-					{
 						"name": "admission_id",
 						"type": "int",
 						"precision": 10
 					},
 					{
-						"name": "icd_code",
-						"type": "varchar"
+						"name": "patient_id",
+						"type": "int",
+						"precision": 10
 					},
 					{
-						"name": "diagnosis_description",
+						"name": "admission_date",
+						"type": "date"
+					},
+					{
+						"name": "discharge_date",
+						"type": "date"
+					},
+					{
+						"name": "department",
 						"type": "nvarchar"
 					},
 					{
-						"name": "severity",
-						"type": "varchar"
+						"name": "attending_doctor_id",
+						"type": "int",
+						"precision": 10
 					}
 				],
 				"typeProperties": {
 					"schema": "silver",
-					"table": "diagnoses"
+					"table": "admissions"
 				}
 			},
 			"dependsOn": [
@@ -987,11 +992,12 @@
 						"SELAdmisionesSilver sink(allowSchemaDrift: true,",
 						"     validateSchema: false,",
 						"     input(",
-						"          diagnosis_id as integer,",
 						"          admission_id as integer,",
-						"          icd_code as string,",
-						"          diagnosis_description as string,",
-						"          severity as string",
+						"          patient_id as integer,",
+						"          admission_date as date,",
+						"          discharge_date as date,",
+						"          department as string,",
+						"          attending_doctor_id as integer",
 						"     ),",
 						"     deletable:false,",
 						"     insertable:true,",
@@ -1075,11 +1081,12 @@
 						"     isolationLevel: 'READ_UNCOMMITTED',",
 						"     format: 'table') ~> SRCDiagnosticosBronze",
 						"source(output(",
-						"          diagnosis_id as integer,",
 						"          admission_id as integer,",
-						"          icd_code as string,",
-						"          diagnosis_description as string,",
-						"          severity as string",
+						"          patient_id as integer,",
+						"          admission_date as date,",
+						"          discharge_date as date,",
+						"          department as string,",
+						"          attending_doctor_id as integer",
 						"     ),",
 						"     allowSchemaDrift: true,",
 						"     validateSchema: false,",
@@ -1194,11 +1201,12 @@
 						"     isolationLevel: 'READ_UNCOMMITTED',",
 						"     format: 'table') ~> SRCFacturacionBronze",
 						"source(output(",
-						"          diagnosis_id as integer,",
 						"          admission_id as integer,",
-						"          icd_code as string,",
-						"          diagnosis_description as string,",
-						"          severity as string",
+						"          patient_id as integer,",
+						"          admission_date as date,",
+						"          discharge_date as date,",
+						"          department as string,",
+						"          attending_doctor_id as integer",
 						"     ),",
 						"     allowSchemaDrift: true,",
 						"     validateSchema: false,",
