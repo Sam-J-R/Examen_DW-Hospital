@@ -1,0 +1,114 @@
+{
+	"name": "DF_Silver_Diagnosticos",
+	"properties": {
+		"folder": {
+			"name": "Silver"
+		},
+		"type": "MappingDataFlow",
+		"typeProperties": {
+			"sources": [
+				{
+					"dataset": {
+						"referenceName": "DS_Bronze_Diagnosticos_SQL",
+						"type": "DatasetReference"
+					},
+					"name": "SRCDiagnosticosBronze"
+				},
+				{
+					"dataset": {
+						"referenceName": "DS_Silver_Admisiones_SQL",
+						"type": "DatasetReference"
+					},
+					"name": "SRCAdmisionesSilver"
+				}
+			],
+			"sinks": [
+				{
+					"dataset": {
+						"referenceName": "DS_Silver_Diagnosticos_SQL",
+						"type": "DatasetReference"
+					},
+					"name": "SNKDiagnosticosSilver"
+				}
+			],
+			"transformations": [
+				{
+					"name": "DERDiagnosticosLimpieza"
+				},
+				{
+					"name": "DERDiagnosticosReglas"
+				},
+				{
+					"name": "FILDiagnosticosValidos"
+				},
+				{
+					"name": "EXTAdmisionExiste"
+				},
+				{
+					"name": "SELDiagnosticosSilver"
+				}
+			],
+			"scriptLines": [
+				"source(output(",
+				"          diagnosis_id as string,",
+				"          admission_id as string,",
+				"          icd_code as string,",
+				"          diagnosis_description as string,",
+				"          severity as string",
+				"     ),",
+				"     allowSchemaDrift: true,",
+				"     validateSchema: false,",
+				"     isolationLevel: 'READ_UNCOMMITTED',",
+				"     format: 'table') ~> SRCDiagnosticosBronze",
+				"source(output(",
+				"          diagnosis_id as integer,",
+				"          admission_id as integer,",
+				"          icd_code as string,",
+				"          diagnosis_description as string,",
+				"          severity as string",
+				"     ),",
+				"     allowSchemaDrift: true,",
+				"     validateSchema: false,",
+				"     isolationLevel: 'READ_UNCOMMITTED',",
+				"     format: 'table') ~> SRCAdmisionesSilver",
+				"SRCDiagnosticosBronze derive(diagnosis_id = toInteger(trim(diagnosis_id)),",
+				"          admission_id = toInteger(trim(admission_id)),",
+				"          tmp_icd = replace(upper(trim(split(icd_code, ',')[1])), '-', '.'),",
+				"          diagnosis_description = trim(diagnosis_description),",
+				"          tmp_severidad = lower(trim(severity))) ~> DERDiagnosticosLimpieza",
+				"DERDiagnosticosLimpieza derive(icd_code = iif(instr(tmp_icd, '.') == 0 && length(tmp_icd) > 3, concat(left(tmp_icd, 3), '.', substring(tmp_icd, 4)), tmp_icd),",
+				"          severity = case(tmp_severidad == 'mild', 'Mild', tmp_severidad == 'moderate', 'Moderate', tmp_severidad == 'severe', 'Severe', tmp_severidad == 'critical', 'Critical')) ~> DERDiagnosticosReglas",
+				"DERDiagnosticosReglas filter(!isNull(diagnosis_id) && !isNull(icd_code) && icd_code != '') ~> FILDiagnosticosValidos",
+				"FILDiagnosticosValidos, SRCAdmisionesSilver exists(DERDiagnosticosLimpieza@admission_id == SRCAdmisionesSilver @admission_id,",
+				"     negate:false,",
+				"     broadcast: 'auto')~> EXTAdmisionExiste",
+				"EXTAdmisionExiste select(mapColumn(",
+				"          diagnosis_id,",
+				"          admission_id,",
+				"          icd_code,",
+				"          diagnosis_description,",
+				"          severity",
+				"     ),",
+				"     skipDuplicateMapInputs: true,",
+				"     skipDuplicateMapOutputs: true) ~> SELDiagnosticosSilver",
+				"SELDiagnosticosSilver sink(allowSchemaDrift: true,",
+				"     validateSchema: false,",
+				"     input(",
+				"          diagnosis_id as integer,",
+				"          admission_id as integer,",
+				"          icd_code as string,",
+				"          diagnosis_description as string,",
+				"          severity as string",
+				"     ),",
+				"     deletable:false,",
+				"     insertable:true,",
+				"     updateable:false,",
+				"     upsertable:false,",
+				"     format: 'table',",
+				"     skipDuplicateMapInputs: true,",
+				"     skipDuplicateMapOutputs: true,",
+				"     errorHandlingOption: 'stopOnFirstError') ~> SNKDiagnosticosSilver"
+			]
+		}
+	}
+}
