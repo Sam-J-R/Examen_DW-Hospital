@@ -1,0 +1,15 @@
+{
+	"name": "DS_DW_Hospital_Consulta",
+	"properties": {
+		"linkedServiceName": {
+			"referenceName": "LS_SQL_DW_Hospital",
+			"type": "LinkedServiceReference"
+		},
+		"folder": {
+			"name": "gold"
+		},
+		"annotations": [],
+		"type": "AzureSqlTable",
+		"schema": []
+	}
+}
