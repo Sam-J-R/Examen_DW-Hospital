@@ -510,6 +510,360 @@
 			"dependsOn": []
 		},
 		{
+			"name": "[concat(parameters('factoryName'), '/DF_Gold_FactAdmisiones')]",
+			"type": "Microsoft.DataFactory/factories/dataflows",
+			"apiVersion": "2018-06-01",
+			"properties": {
+				"folder": {
+					"name": "Gold"
+				},
+				"type": "MappingDataFlow",
+				"typeProperties": {
+					"sources": [
+						{
+							"dataset": {
+								"referenceName": "DS_DW_Hospital_Consulta",
+								"type": "DatasetReference"
+							},
+							"name": "SRCAdmisionesBase"
+						},
+						{
+							"dataset": {
+								"referenceName": "DS_DW_Hospital_Consulta",
+								"type": "DatasetReference"
+							},
+							"name": "DimPaciente"
+						},
+						{
+							"dataset": {
+								"referenceName": "DS_DW_Hospital_Consulta",
+								"type": "DatasetReference"
+							},
+							"name": "DimDepartamento"
+						},
+						{
+							"dataset": {
+								"referenceName": "DS_DW_Hospital_Consulta",
+								"type": "DatasetReference"
+							},
+							"name": "DimDiagnostico"
+						}
+					],
+					"sinks": [
+						{
+							"dataset": {
+								"referenceName": "DS_Gold_FactAdmisiones_SQL",
+								"type": "DatasetReference"
+							},
+							"name": "SNKFactAdmisiones"
+						}
+					],
+					"transformations": [
+						{
+							"name": "LKPPaciente"
+						},
+						{
+							"name": "LKPDepartamento"
+						},
+						{
+							"name": "LKPDiagnostico"
+						},
+						{
+							"name": "DERLlavesDesconocidas"
+						},
+						{
+							"name": "SELHechosAdmisiones"
+						}
+					],
+					"scriptLines": [
+						"source(output(",
+						"          admission_id_bk as integer,",
+						"          patient_id as integer,",
+						"          department as string,",
+						"          icd_code as string,",
+						"          severity as string,",
+						"          fecha_ingreso_key as integer,",
+						"          fecha_alta_key as integer,",
+						"          medico_id as integer,",
+						"          dias_estancia as integer",
+						"     ),",
+						"     allowSchemaDrift: true,",
+						"     validateSchema: false,",
+						"     isolationLevel: 'READ_UNCOMMITTED',",
+						"     query: 'SELECT * FROM gold.vw_fact_admisiones_base',",
+						"     format: 'query') ~> SRCAdmisionesBase",
+						"source(output(",
+						"          paciente_key as integer,",
+						"          patient_id_bk as integer",
+						"     ),",
+						"     allowSchemaDrift: true,",
+						"     validateSchema: false,",
+						"     isolationLevel: 'READ_UNCOMMITTED',",
+						"     query: 'SELECT paciente_key, patient_id_bk FROM gold.dim_paciente',",
+						"     format: 'query') ~> DimPaciente",
+						"source(output(",
+						"          departamento_key as integer,",
+						"          nombre_departamento as string",
+						"     ),",
+						"     allowSchemaDrift: true,",
+						"     validateSchema: false,",
+						"     isolationLevel: 'READ_UNCOMMITTED',",
+						"     query: 'SELECT departamento_key, nombre_departamento FROM gold.dim_departamento',",
+						"     format: 'query') ~> DimDepartamento",
+						"source(output(",
+						"          diagnostico_key as integer,",
+						"          codigo_icd as string,",
+						"          nivel_severidad as string",
+						"     ),",
+						"     allowSchemaDrift: true,",
+						"     validateSchema: false,",
+						"     isolationLevel: 'READ_UNCOMMITTED',",
+						"     query: 'SELECT diagnostico_key, codigo_icd, nivel_severidad FROM gold.dim_diagnostico',",
+						"     format: 'query') ~> DimDiagnostico",
+						"LKPDepartamento, DimPaciente lookup(patient_id == patient_id_bk,",
+						"     multiple: false,",
+						"     pickup: 'any',",
+						"     broadcast: 'auto')~> LKPPaciente",
+						"LKPDiagnostico, DimDepartamento lookup(department == nombre_departamento,",
+						"     multiple: false,",
+						"     pickup: 'any',",
+						"     broadcast: 'auto')~> LKPDepartamento",
+						"SRCAdmisionesBase, DimDiagnostico lookup(icd_code == codigo_icd",
+						"     && severity == nivel_severidad,",
+						"     multiple: false,",
+						"     pickup: 'any',",
+						"     broadcast: 'auto')~> LKPDiagnostico",
+						"LKPPaciente derive(paciente_key = coalesce(paciente_key, -1),",
+						"          departamento_key = coalesce(departamento_key, -1),",
+						"          diagnostico_key = coalesce(diagnostico_key, -1),",
+						"          conteo_admisiones = 1) ~> DERLlavesDesconocidas",
+						"DERLlavesDesconocidas select(mapColumn(",
+						"          admission_id_bk,",
+						"          paciente_key,",
+						"          departamento_key,",
+						"          diagnostico_key,",
+						"          fecha_ingreso_key,",
+						"          fecha_alta_key,",
+						"          medico_id,",
+						"          dias_estancia,",
+						"          conteo_admisiones",
+						"     ),",
+						"     skipDuplicateMapInputs: true,",
+						"     skipDuplicateMapOutputs: true) ~> SELHechosAdmisiones",
+						"SELHechosAdmisiones sink(allowSchemaDrift: true,",
+						"     validateSchema: false,",
+						"     input(",
+						"          admision_key as long,",
+						"          admission_id_bk as integer,",
+						"          paciente_key as integer,",
+						"          departamento_key as integer,",
+						"          diagnostico_key as integer,",
+						"          fecha_ingreso_key as integer,",
+						"          fecha_alta_key as integer,",
+						"          medico_id as integer,",
+						"          dias_estancia as integer,",
+						"          conteo_admisiones as integer",
+						"     ),",
+						"     deletable:false,",
+						"     insertable:true,",
+						"     updateable:false,",
+						"     upsertable:false,",
+						"     format: 'table',",
+						"     skipDuplicateMapInputs: true,",
+						"     skipDuplicateMapOutputs: true,",
+						"     errorHandlingOption: 'stopOnFirstError',",
+						"     mapColumn(",
+						"          admission_id_bk,",
+						"          paciente_key,",
+						"          departamento_key,",
+						"          diagnostico_key,",
+						"          fecha_ingreso_key,",
+						"          fecha_alta_key,",
+						"          medico_id,",
+						"          dias_estancia,",
+						"          conteo_admisiones",
+						"     )) ~> SNKFactAdmisiones"
+					]
+				}
+			},
+			"dependsOn": []
+		},
+		{
+			"name": "[concat(parameters('factoryName'), '/DF_Gold_FactFacturacion')]",
+			"type": "Microsoft.DataFactory/factories/dataflows",
+			"apiVersion": "2018-06-01",
+			"properties": {
+				"folder": {
+					"name": "Gold"
+				},
+				"type": "MappingDataFlow",
+				"typeProperties": {
+					"sources": [
+						{
+							"dataset": {
+								"referenceName": "DS_DW_Hospital_Consulta",
+								"type": "DatasetReference"
+							},
+							"name": "SRCFacturacionBase"
+						},
+						{
+							"dataset": {
+								"referenceName": "DS_DW_Hospital_Consulta",
+								"type": "DatasetReference"
+							},
+							"name": "DimPaciente"
+						},
+						{
+							"dataset": {
+								"referenceName": "DS_DW_Hospital_Consulta",
+								"type": "DatasetReference"
+							},
+							"name": "DimDepartamento"
+						},
+						{
+							"dataset": {
+								"referenceName": "DS_DW_Hospital_Consulta",
+								"type": "DatasetReference"
+							},
+							"name": "DimServicioCargo"
+						}
+					],
+					"sinks": [
+						{
+							"dataset": {
+								"referenceName": "DS_Gold_FactFacturacion_SQL",
+								"type": "DatasetReference"
+							},
+							"name": "SNKFactFacturacion"
+						}
+					],
+					"transformations": [
+						{
+							"name": "LKPPaciente"
+						},
+						{
+							"name": "LKPDepartamento"
+						},
+						{
+							"name": "DERLlavesDesconocidas"
+						},
+						{
+							"name": "SELHechosFacturacion"
+						},
+						{
+							"name": "LKPServicioCargo"
+						}
+					],
+					"scriptLines": [
+						"source(output(",
+						"          billing_id_bk as integer,",
+						"          admission_id_bk as integer,",
+						"          patient_id as integer,",
+						"          department as string,",
+						"          charge_type as string,",
+						"          payment_status as string,",
+						"          fecha_pago_key as integer,",
+						"          monto_facturado as decimal(12,2)",
+						"     ),",
+						"     allowSchemaDrift: true,",
+						"     validateSchema: false,",
+						"     isolationLevel: 'READ_UNCOMMITTED',",
+						"     query: 'SELECT * FROM gold.vw_fact_facturacion_base',",
+						"     format: 'query') ~> SRCFacturacionBase",
+						"source(output(",
+						"          paciente_key as integer,",
+						"          patient_id_bk as integer",
+						"     ),",
+						"     allowSchemaDrift: true,",
+						"     validateSchema: false,",
+						"     isolationLevel: 'READ_UNCOMMITTED',",
+						"     query: 'SELECT paciente_key, patient_id_bk FROM gold.dim_paciente',",
+						"     format: 'query') ~> DimPaciente",
+						"source(output(",
+						"          departamento_key as integer,",
+						"          nombre_departamento as string",
+						"     ),",
+						"     allowSchemaDrift: true,",
+						"     validateSchema: false,",
+						"     isolationLevel: 'READ_UNCOMMITTED',",
+						"     query: 'SELECT departamento_key, nombre_departamento FROM gold.dim_departamento',",
+						"     format: 'query') ~> DimDepartamento",
+						"source(output(",
+						"          servicio_cargo_key as integer,",
+						"          tipo_cargo as string,",
+						"          estado_pago as string",
+						"     ),",
+						"     allowSchemaDrift: true,",
+						"     validateSchema: false,",
+						"     isolationLevel: 'READ_UNCOMMITTED',",
+						"     query: 'SELECT servicio_cargo_key, tipo_cargo, estado_pago FROM gold.dim_servicio_cargo',",
+						"     format: 'query') ~> DimServicioCargo",
+						"SRCFacturacionBase, DimPaciente lookup(patient_id == patient_id_bk,",
+						"     multiple: false,",
+						"     pickup: 'any',",
+						"     broadcast: 'auto')~> LKPPaciente",
+						"LKPPaciente, DimDepartamento lookup(department == nombre_departamento,",
+						"     multiple: false,",
+						"     pickup: 'any',",
+						"     broadcast: 'auto')~> LKPDepartamento",
+						"LKPServicioCargo derive(paciente_key = coalesce(paciente_key, -1),",
+						"          departamento_key = coalesce(departamento_key, -1),",
+						"          servicio_cargo_key = coalesce(servicio_cargo_key, -1),",
+						"          conteo_transacciones = 1) ~> DERLlavesDesconocidas",
+						"DERLlavesDesconocidas select(mapColumn(",
+						"          billing_id_bk,",
+						"          admission_id_bk,",
+						"          paciente_key,",
+						"          departamento_key,",
+						"          servicio_cargo_key,",
+						"          fecha_pago_key,",
+						"          monto_facturado,",
+						"          conteo_transacciones",
+						"     ),",
+						"     skipDuplicateMapInputs: true,",
+						"     skipDuplicateMapOutputs: true) ~> SELHechosFacturacion",
+						"LKPDepartamento, DimServicioCargo lookup(charge_type == tipo_cargo",
+						"     && payment_status == estado_pago,",
+						"     multiple: false,",
+						"     pickup: 'any',",
+						"     broadcast: 'auto')~> LKPServicioCargo",
+						"SELHechosFacturacion sink(allowSchemaDrift: true,",
+						"     validateSchema: false,",
+						"     input(",
+						"          facturacion_key as long,",
+						"          billing_id_bk as integer,",
+						"          admission_id_bk as integer,",
+						"          paciente_key as integer,",
+						"          departamento_key as integer,",
+						"          servicio_cargo_key as integer,",
+						"          fecha_pago_key as integer,",
+						"          monto_facturado as decimal(12,2),",
+						"          conteo_transacciones as integer",
+						"     ),",
+						"     deletable:false,",
+						"     insertable:true,",
+						"     updateable:false,",
+						"     upsertable:false,",
+						"     format: 'table',",
+						"     skipDuplicateMapInputs: true,",
+						"     skipDuplicateMapOutputs: true,",
+						"     errorHandlingOption: 'stopOnFirstError',",
+						"     mapColumn(",
+						"          billing_id_bk,",
+						"          admission_id_bk,",
+						"          paciente_key,",
+						"          departamento_key,",
+						"          servicio_cargo_key,",
+						"          fecha_pago_key,",
+						"          monto_facturado,",
+						"          conteo_transacciones",
+						"     )) ~> SNKFactFacturacion"
+					]
+				}
+			},
+			"dependsOn": []
+		},
+		{
 			"name": "[concat(parameters('factoryName'), '/PL_ETL_Hospital')]",
 			"type": "Microsoft.DataFactory/factories/pipelines",
 			"apiVersion": "2018-06-01",
@@ -876,6 +1230,86 @@
 							},
 							"traceLevel": "Fine"
 						}
+					},
+					{
+						"name": "ACT_Gold_FactAdmisiones",
+						"type": "ExecuteDataFlow",
+						"dependsOn": [
+							{
+								"activity": "ACT_Gold_DimServicioCargo",
+								"dependencyConditions": [
+									"Succeeded"
+								]
+							}
+						],
+						"policy": {
+							"timeout": "0.12:00:00",
+							"retry": 0,
+							"retryIntervalInSeconds": 30,
+							"secureOutput": false,
+							"secureInput": false
+						},
+						"userProperties": [],
+						"typeProperties": {
+							"dataflow": {
+								"referenceName": "DF_Gold_FactAdmisiones",
+								"type": "DataFlowReference",
+								"parameters": {},
+								"datasetParameters": {
+									"SRCAdmisionesBase": {},
+									"DimPaciente": {},
+									"DimDepartamento": {},
+									"DimDiagnostico": {},
+									"SNKFactAdmisiones": {}
+								}
+							},
+							"staging": {},
+							"compute": {
+								"coreCount": 8,
+								"computeType": "General"
+							},
+							"traceLevel": "Fine"
+						}
+					},
+					{
+						"name": "ACT_Gold_FactFacturacion",
+						"type": "ExecuteDataFlow",
+						"dependsOn": [
+							{
+								"activity": "ACT_Gold_FactAdmisiones",
+								"dependencyConditions": [
+									"Succeeded"
+								]
+							}
+						],
+						"policy": {
+							"timeout": "0.12:00:00",
+							"retry": 0,
+							"retryIntervalInSeconds": 30,
+							"secureOutput": false,
+							"secureInput": false
+						},
+						"userProperties": [],
+						"typeProperties": {
+							"dataflow": {
+								"referenceName": "DF_Gold_FactFacturacion",
+								"type": "DataFlowReference",
+								"parameters": {},
+								"datasetParameters": {
+									"SRCFacturacionBase": {},
+									"DimPaciente": {},
+									"DimDepartamento": {},
+									"DimServicioCargo": {},
+									"SNKFactFacturacion": {}
+								}
+							},
+							"staging": {},
+							"compute": {
+								"coreCount": 8,
+								"computeType": "General"
+							},
+							"traceLevel": "Fine"
+						}
 					}
 				],
 				"policy": {
@@ -889,7 +1323,9 @@
 				"[concat(variables('factoryId'), '/dataflows/DF_Gold_DimPaciente')]",
 				"[concat(variables('factoryId'), '/dataflows/DF_Gold_DimDepartamento')]",
 				"[concat(variables('factoryId'), '/dataflows/DF_Gold_DimDiagnostico')]",
-				"[concat(variables('factoryId'), '/dataflows/DF_Gold_DimServicioCargo')]"
+				"[concat(variables('factoryId'), '/dataflows/DF_Gold_DimServicioCargo')]",
+				"[concat(variables('factoryId'), '/dataflows/DF_Gold_FactAdmisiones')]",
+				"[concat(variables('factoryId'), '/dataflows/DF_Gold_FactFacturacion')]"
 			]
 		}
 	]
