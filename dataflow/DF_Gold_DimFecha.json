@@ -24,7 +24,11 @@
 					"name": "SNKDimFecha"
 				}
 			],
-			"transformations": [],
+			"transformations": [
+				{
+					"name": "FILFechaValida"
+				}
+			],
 			"scriptLines": [
 				"source(output(",
 				"          fecha_key as integer,",
@@ -46,7 +50,8 @@
 				"     isolationLevel: 'READ_UNCOMMITTED',",
 				"     query: 'SELECT * FROM gold.vw_dim_fecha',",
 				"     format: 'query') ~> SRCDimFecha",
-				"SRCDimFecha sink(allowSchemaDrift: true,",
+				"SRCDimFecha filter(!isNull(fecha_key)) ~> FILFechaValida",
+				"FILFechaValida sink(allowSchemaDrift: true,",
 				"     validateSchema: false,",
 				"     input(",
 				"          fecha_key as integer,",
