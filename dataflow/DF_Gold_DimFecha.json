@@ -75,21 +75,7 @@
 				"     format: 'table',",
 				"     skipDuplicateMapInputs: true,",
 				"     skipDuplicateMapOutputs: true,",
-				"     errorHandlingOption: 'stopOnFirstError',",
-				"     mapColumn(",
-				"          fecha_completa,",
-				"          anio,",
-				"          trimestre,",
-				"          trimestre_nombre,",
-				"          mes,",
-				"          mes_nombre,",
-				"          mes_corto,",
-				"          semana_anio,",
-				"          dia_mes,",
-				"          dia_semana,",
-				"          dia_nombre,",
-				"          es_fin_de_semana",
-				"     )) ~> SNKDimFecha"
+				"     errorHandlingOption: 'stopOnFirstError') ~> SNKDimFecha"
 			]
 		}
 	}
