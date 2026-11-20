@@ -1,0 +1,176 @@
+{
+	"name": "DF_Gold_FactAdmisiones",
+	"properties": {
+		"folder": {
+			"name": "Gold"
+		},
+		"type": "MappingDataFlow",
+		"typeProperties": {
+			"sources": [
+				{
+					"dataset": {
+						"referenceName": "DS_DW_Hospital_Consulta",
+						"type": "DatasetReference"
+					},
+					"name": "SRCAdmisionesBase"
+				},
+				{
+					"dataset": {
+						"referenceName": "DS_DW_Hospital_Consulta",
+						"type": "DatasetReference"
+					},
+					"name": "DimPaciente"
+				},
+				{
+					"dataset": {
+						"referenceName": "DS_DW_Hospital_Consulta",
+						"type": "DatasetReference"
+					},
+					"name": "DimDepartamento"
+				},
+				{
+					"dataset": {
+						"referenceName": "DS_DW_Hospital_Consulta",
+						"type": "DatasetReference"
+					},
+					"name": "DimDiagnostico"
+				}
+			],
+			"sinks": [
+				{
+					"dataset": {
+						"referenceName": "DS_Gold_FactAdmisiones_SQL",
+						"type": "DatasetReference"
+					},
+					"name": "SNKFactAdmisiones"
+				}
+			],
+			"transformations": [
+				{
+					"name": "LKPPaciente"
+				},
+				{
+					"name": "LKPDepartamento"
+				},
+				{
+					"name": "LKPDiagnostico"
+				},
+				{
+					"name": "DERLlavesDesconocidas"
+				},
+				{
+					"name": "SELHechosAdmisiones"
+				}
+			],
+			"scriptLines": [
+				"source(output(",
+				"          admission_id_bk as integer,",
+				"          patient_id as integer,",
+				"          department as string,",
+				"          icd_code as string,",
+				"          severity as string,",
+				"          fecha_ingreso_key as integer,",
+				"          fecha_alta_key as integer,",
+				"          medico_id as integer,",
+				"          dias_estancia as integer",
+				"     ),",
+				"     allowSchemaDrift: true,",
+				"     validateSchema: false,",
+				"     isolationLevel: 'READ_UNCOMMITTED',",
+				"     query: 'SELECT * FROM gold.vw_fact_admisiones_base',",
+				"     format: 'query') ~> SRCAdmisionesBase",
+				"source(output(",
+				"          paciente_key as integer,",
+				"          patient_id_bk as integer",
+				"     ),",
+				"     allowSchemaDrift: true,",
+				"     validateSchema: false,",
+				"     isolationLevel: 'READ_UNCOMMITTED',",
+				"     query: 'SELECT paciente_key, patient_id_bk FROM gold.dim_paciente',",
+				"     format: 'query') ~> DimPaciente",
+				"source(output(",
+				"          departamento_key as integer,",
+				"          nombre_departamento as string",
+				"     ),",
+				"     allowSchemaDrift: true,",
+				"     validateSchema: false,",
+				"     isolationLevel: 'READ_UNCOMMITTED',",
+				"     query: 'SELECT departamento_key, nombre_departamento FROM gold.dim_departamento',",
+				"     format: 'query') ~> DimDepartamento",
+				"source(output(",
+				"          diagnostico_key as integer,",
+				"          codigo_icd as string,",
+				"          nivel_severidad as string",
+				"     ),",
+				"     allowSchemaDrift: true,",
+				"     validateSchema: false,",
+				"     isolationLevel: 'READ_UNCOMMITTED',",
+				"     query: 'SELECT diagnostico_key, codigo_icd, nivel_severidad FROM gold.dim_diagnostico',",
+				"     format: 'query') ~> DimDiagnostico",
+				"LKPDepartamento, DimPaciente lookup(patient_id == patient_id_bk,",
+				"     multiple: false,",
+				"     pickup: 'any',",
+				"     broadcast: 'auto')~> LKPPaciente",
+				"LKPDiagnostico, DimDepartamento lookup(department == nombre_departamento,",
+				"     multiple: false,",
+				"     pickup: 'any',",
+				"     broadcast: 'auto')~> LKPDepartamento",
+				"SRCAdmisionesBase, DimDiagnostico lookup(icd_code == codigo_icd",
+				"     && severity == nivel_severidad,",
+				"     multiple: false,",
+				"     pickup: 'any',",
+				"     broadcast: 'auto')~> LKPDiagnostico",
+				"LKPPaciente derive(paciente_key = coalesce(paciente_key, -1),",
+				"          departamento_key = coalesce(departamento_key, -1),",
+				"          diagnostico_key = coalesce(diagnostico_key, -1),",
+				"          conteo_admisiones = 1) ~> DERLlavesDesconocidas",
+				"DERLlavesDesconocidas select(mapColumn(",
+				"          admission_id_bk,",
+				"          paciente_key,",
+				"          departamento_key,",
+				"          diagnostico_key,",
+				"          fecha_ingreso_key,",
+				"          fecha_alta_key,",
+				"          medico_id,",
+				"          dias_estancia,",
+				"          conteo_admisiones",
+				"     ),",
+				"     skipDuplicateMapInputs: true,",
+				"     skipDuplicateMapOutputs: true) ~> SELHechosAdmisiones",
+				"SELHechosAdmisiones sink(allowSchemaDrift: true,",
+				"     validateSchema: false,",
+				"     input(",
+				"          admision_key as long,",
+				"          admission_id_bk as integer,",
+				"          paciente_key as integer,",
+				"          departamento_key as integer,",
+				"          diagnostico_key as integer,",
+				"          fecha_ingreso_key as integer,",
+				"          fecha_alta_key as integer,",
+				"          medico_id as integer,",
+				"          dias_estancia as integer,",
+				"          conteo_admisiones as integer",
+				"     ),",
+				"     deletable:false,",
+				"     insertable:true,",
+				"     updateable:false,",
+				"     upsertable:false,",
+				"     format: 'table',",
+				"     skipDuplicateMapInputs: true,",
+				"     skipDuplicateMapOutputs: true,",
+				"     errorHandlingOption: 'stopOnFirstError',",
+				"     mapColumn(",
+				"          admission_id_bk,",
+				"          paciente_key,",
+				"          departamento_key,",
+				"          diagnostico_key,",
+				"          fecha_ingreso_key,",
+				"          fecha_alta_key,",
+				"          medico_id,",
+				"          dias_estancia,",
+				"          conteo_admisiones",
+				"     )) ~> SNKFactAdmisiones"
+			]
+		}
+	}
+}
