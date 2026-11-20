@@ -1,0 +1,172 @@
+{
+	"name": "DF_Gold_FactFacturacion",
+	"properties": {
+		"folder": {
+			"name": "Gold"
+		},
+		"type": "MappingDataFlow",
+		"typeProperties": {
+			"sources": [
+				{
+					"dataset": {
+						"referenceName": "DS_DW_Hospital_Consulta",
+						"type": "DatasetReference"
+					},
+					"name": "SRCFacturacionBase"
+				},
+				{
+					"dataset": {
+						"referenceName": "DS_DW_Hospital_Consulta",
+						"type": "DatasetReference"
+					},
+					"name": "DimPaciente"
+				},
+				{
+					"dataset": {
+						"referenceName": "DS_DW_Hospital_Consulta",
+						"type": "DatasetReference"
+					},
+					"name": "DimDepartamento"
+				},
+				{
+					"dataset": {
+						"referenceName": "DS_DW_Hospital_Consulta",
+						"type": "DatasetReference"
+					},
+					"name": "DimServicioCargo"
+				}
+			],
+			"sinks": [
+				{
+					"dataset": {
+						"referenceName": "DS_Gold_FactFacturacion_SQL",
+						"type": "DatasetReference"
+					},
+					"name": "SNKFactFacturacion"
+				}
+			],
+			"transformations": [
+				{
+					"name": "LKPPaciente"
+				},
+				{
+					"name": "LKPDepartamento"
+				},
+				{
+					"name": "DERLlavesDesconocidas"
+				},
+				{
+					"name": "SELHechosFacturacion"
+				},
+				{
+					"name": "LKPServicioCargo"
+				}
+			],
+			"scriptLines": [
+				"source(output(",
+				"          billing_id_bk as integer,",
+				"          admission_id_bk as integer,",
+				"          patient_id as integer,",
+				"          department as string,",
+				"          charge_type as string,",
+				"          payment_status as string,",
+				"          fecha_pago_key as integer,",
+				"          monto_facturado as decimal(12,2)",
+				"     ),",
+				"     allowSchemaDrift: true,",
+				"     validateSchema: false,",
+				"     isolationLevel: 'READ_UNCOMMITTED',",
+				"     query: 'SELECT * FROM gold.vw_fact_facturacion_base',",
+				"     format: 'query') ~> SRCFacturacionBase",
+				"source(output(",
+				"          paciente_key as integer,",
+				"          patient_id_bk as integer",
+				"     ),",
+				"     allowSchemaDrift: true,",
+				"     validateSchema: false,",
+				"     isolationLevel: 'READ_UNCOMMITTED',",
+				"     query: 'SELECT paciente_key, patient_id_bk FROM gold.dim_paciente',",
+				"     format: 'query') ~> DimPaciente",
+				"source(output(",
+				"          departamento_key as integer,",
+				"          nombre_departamento as string",
+				"     ),",
+				"     allowSchemaDrift: true,",
+				"     validateSchema: false,",
+				"     isolationLevel: 'READ_UNCOMMITTED',",
+				"     query: 'SELECT departamento_key, nombre_departamento FROM gold.dim_departamento',",
+				"     format: 'query') ~> DimDepartamento",
+				"source(output(",
+				"          servicio_cargo_key as integer,",
+				"          tipo_cargo as string,",
+				"          estado_pago as string",
+				"     ),",
+				"     allowSchemaDrift: true,",
+				"     validateSchema: false,",
+				"     isolationLevel: 'READ_UNCOMMITTED',",
+				"     query: 'SELECT servicio_cargo_key, tipo_cargo, estado_pago FROM gold.dim_servicio_cargo',",
+				"     format: 'query') ~> DimServicioCargo",
+				"SRCFacturacionBase, DimPaciente lookup(patient_id == patient_id_bk,",
+				"     multiple: false,",
+				"     pickup: 'any',",
+				"     broadcast: 'auto')~> LKPPaciente",
+				"LKPPaciente, DimDepartamento lookup(department == nombre_departamento,",
+				"     multiple: false,",
+				"     pickup: 'any',",
+				"     broadcast: 'auto')~> LKPDepartamento",
+				"LKPServicioCargo derive(paciente_key = coalesce(paciente_key, -1),",
+				"          departamento_key = coalesce(departamento_key, -1),",
+				"          servicio_cargo_key = coalesce(servicio_cargo_key, -1),",
+				"          conteo_transacciones = 1) ~> DERLlavesDesconocidas",
+				"DERLlavesDesconocidas select(mapColumn(",
+				"          billing_id_bk,",
+				"          admission_id_bk,",
+				"          paciente_key,",
+				"          departamento_key,",
+				"          servicio_cargo_key,",
+				"          fecha_pago_key,",
+				"          monto_facturado,",
+				"          conteo_transacciones",
+				"     ),",
+				"     skipDuplicateMapInputs: true,",
+				"     skipDuplicateMapOutputs: true) ~> SELHechosFacturacion",
+				"LKPDepartamento, DimServicioCargo lookup(charge_type == tipo_cargo",
+				"     && payment_status == estado_pago,",
+				"     multiple: false,",
+				"     pickup: 'any',",
+				"     broadcast: 'auto')~> LKPServicioCargo",
+				"SELHechosFacturacion sink(allowSchemaDrift: true,",
+				"     validateSchema: false,",
+				"     input(",
+				"          facturacion_key as long,",
+				"          billing_id_bk as integer,",
+				"          admission_id_bk as integer,",
+				"          paciente_key as integer,",
+				"          departamento_key as integer,",
+				"          servicio_cargo_key as integer,",
+				"          fecha_pago_key as integer,",
+				"          monto_facturado as decimal(12,2),",
+				"          conteo_transacciones as integer",
+				"     ),",
+				"     deletable:false,",
+				"     insertable:true,",
+				"     updateable:false,",
+				"     upsertable:false,",
+				"     format: 'table',",
+				"     skipDuplicateMapInputs: true,",
+				"     skipDuplicateMapOutputs: true,",
+				"     errorHandlingOption: 'stopOnFirstError',",
+				"     mapColumn(",
+				"          billing_id_bk,",
+				"          admission_id_bk,",
+				"          paciente_key,",
+				"          departamento_key,",
+				"          servicio_cargo_key,",
+				"          fecha_pago_key,",
+				"          monto_facturado,",
+				"          conteo_transacciones",
+				"     )) ~> SNKFactFacturacion"
+			]
+		}
+	}
+}
